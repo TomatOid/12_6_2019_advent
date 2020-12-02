@@ -3,26 +3,27 @@ const fs = std.fs;
 const stdout = std.io.getStdOut().writer();
 
 const TreeNode = struct {
-    parent: ?*TreeNode,
-    children: ?std.SinglyLinkedList(*TreeNode) = null,
+    const Node = std.SinglyLinkedList(*TreeNode).Node;
+    children: ?*Node = null,
 
     pub fn addChild(self: *TreeNode, child: *TreeNode, allocator: *std.mem.Allocator) !void {
-        const Node = std.SinglyLinkedList(*TreeNode).Node;
         var child_node = try allocator.create(Node);
         child_node.data = child;
-        var child_list = self.children orelse std.SinglyLinkedList(*TreeNode){};
-        self.children = child_list;
-        child_list.prepend(child_node);
+        if (self.children) |sub_planets| {
+            sub_planets.insertAfter(child_node);
+        } else {
+            child_node.next = null;
+            self.children = child_node;
+        }
     }
 
     pub fn countOrbits(self: *TreeNode, recursion_depth: usize) usize {
         var total_orbits: usize = recursion_depth;
-        if (self.children) |child_list| {
-            var current_node = &child_list.Node;
-            while (current_node) |value| : (current_node = current_node.next) {
-                total_orbits += value.data.countOrbits();
-            }
+        var current_node = self.children;
+        while (current_node) |value| : (current_node = value.next) {
+            total_orbits += value.data.countOrbits(recursion_depth + 1);
         }
+        return total_orbits;
     }
 };
 
@@ -73,6 +74,7 @@ pub fn main() !void {
                 center_planet = center;
             } else {
                 center_planet = try allocator.create(TreeNode);
+                center_planet.children = null;
                 try nodes_by_name.put(pieces[0], center_planet);
                 try head_nodes.put(pieces[0], center_planet);
             }
@@ -86,10 +88,12 @@ pub fn main() !void {
                 }
             } else {
                 satellite_planet = try allocator.create(TreeNode);
+                satellite_planet.children = null;
                 try nodes_by_name.put(pieces[1], satellite_planet);
             }
             try center_planet.addChild(satellite_planet, allocator);
         } else return error.Format;
     }
-    try stdout.print("{}\n", .{head_nodes.count()});
+    if (head_nodes.count() != 1) return error.NotOneCOM;
+    try stdout.print("{}\n", .{head_nodes.iterator().next().?.value.countOrbits(0)});
 }
