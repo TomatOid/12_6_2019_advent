@@ -47,7 +47,7 @@ test "split" {
 }
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .safety = false }){};
     defer _ = gpa.deinit();
     const allocator = &gpa.allocator;
     var nodes_by_name = std.StringHashMap(*TreeNode).init(allocator);
@@ -59,8 +59,15 @@ pub fn main() !void {
     var file = (try working_dir.openFile("orbits.txt", .{ .read = true, .write = false })).reader();
 
     var buffer: [1024]u8 = undefined;
-    while (try file.readUntilDelimiterOrEof(buffer[0..], '\n')) |line| {
+    var file_buffer_start: [16536]u8 = undefined;
+    var file_buffer_index: usize = 0;
+    while (try file.readUntilDelimiterOrEof(buffer[0..], '\n')) |temp_line| {
+        if (file_buffer_index + temp_line.len >= file_buffer_start.len) return error.OutOfMemory;
+        std.mem.copy(u8, file_buffer_start[file_buffer_index..], temp_line);
+        var line = file_buffer_start[file_buffer_index .. file_buffer_index + temp_line.len];
+        file_buffer_index += temp_line.len;
         if (splitString(")", line)) |pieces| {
+            try stdout.print("{}, {}\n", .{ pieces[0], pieces[1] });
             var center_planet: *TreeNode = undefined;
             if (nodes_by_name.get(pieces[0])) |center| {
                 center_planet = center;
@@ -75,13 +82,14 @@ pub fn main() !void {
                     satellite_planet = satellite;
                 } else {
                     // a planet cannot be a satellite to more than one planet
-                    return error.Invald;
+                    return error.DoubleSatellite;
                 }
             } else {
                 satellite_planet = try allocator.create(TreeNode);
+                try nodes_by_name.put(pieces[1], satellite_planet);
             }
             try center_planet.addChild(satellite_planet, allocator);
-        } else return error.InvalidCharacter;
+        } else return error.Format;
     }
     try stdout.print("{}\n", .{head_nodes.count()});
 }
