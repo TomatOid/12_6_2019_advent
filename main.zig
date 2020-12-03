@@ -4,11 +4,14 @@ const stdout = std.io.getStdOut().writer();
 
 const TreeNode = struct {
     const Node = std.SinglyLinkedList(*TreeNode).Node;
+    parent: ?*TreeNode = null,
     children: ?*Node = null,
+    name: []u8,
 
     pub fn addChild(self: *TreeNode, child: *TreeNode, allocator: *std.mem.Allocator) !void {
         var child_node = try allocator.create(Node);
         child_node.data = child;
+        child.parent = self;
         if (self.children) |sub_planets| {
             sub_planets.insertAfter(child_node);
         } else {
@@ -24,6 +27,27 @@ const TreeNode = struct {
             total_orbits += value.data.countOrbits(recursion_depth + 1);
         }
         return total_orbits;
+    }
+
+    pub fn findPathTo(self: *TreeNode, exclude_node: *TreeNode, other_name: []u8, hops_count: usize) ?usize {
+        if (std.mem.eql(self.name, other_name)) {
+            return hops_count;
+        }
+        // search children first
+        var current_node = self.children;
+        while (current_node) |value| : (current_node = value.next) {
+            if (value.data == exclude_node) continue;
+            if (value.data.findPathTo(self, other_name, hops_count + 1)) |count| {
+                return count;
+            }
+        }
+        if (self.parent) |parent| {
+            if (value.data == exclude_node) return null;
+            if (parent.findPathTo(self, other_name, hops_count + 1)) |count| {
+                return count;
+            }
+        }
+        return null;
     }
 };
 
@@ -74,7 +98,7 @@ pub fn main() !void {
                 center_planet = center;
             } else {
                 center_planet = try allocator.create(TreeNode);
-                center_planet.children = null;
+                center_planet.* = .{ .name = pieces[0] };
                 try nodes_by_name.put(pieces[0], center_planet);
                 try head_nodes.put(pieces[0], center_planet);
             }
@@ -88,7 +112,7 @@ pub fn main() !void {
                 }
             } else {
                 satellite_planet = try allocator.create(TreeNode);
-                satellite_planet.children = null;
+                satellite_planet.* = .{ .name = pieces[1] };
                 try nodes_by_name.put(pieces[1], satellite_planet);
             }
             try center_planet.addChild(satellite_planet, allocator);
