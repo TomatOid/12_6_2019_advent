@@ -50,6 +50,16 @@ const TreeNode = struct {
         return null;
     }
 
+    pub fn freeSelf(self: *TreeNode, allocator: *std.mem.Allocator) void {
+        var current_node = self.children;
+        while (current_node) |value| {
+            current_node = value.next;
+            allocator.destroy(value);
+        }
+        allocator.free(self.name);
+        allocator.destroy(self);
+    }
+
     pub fn freeSelfAndChildren(self: *TreeNode, allocator: *std.mem.Allocator) void {
         var current_node = self.children;
         while (current_node) |value| {
@@ -85,8 +95,13 @@ test "split" {
 test "hop" {
     var nodes_by_name = std.StringHashMap(*TreeNode).init(std.testing.allocator);
     defer nodes_by_name.deinit();
+    defer {
+        var iterator = nodes_by_name.iterator();
+        while (iterator.next()) |kv| {
+            kv.value.freeSelf(std.testing.allocator);
+        }
+    }
     var root = try buildTree("test.txt", &nodes_by_name, std.testing.allocator);
-    defer root.freeSelfAndChildren(std.testing.allocator);
     var you_node = nodes_by_name.get("YOU") orelse return error.NodeNotFound;
     var you_node_parent = you_node.parent orelse return error.YouNoParent;
     var san_node = nodes_by_name.get("SAN") orelse return error.NodeNotFound;
@@ -146,9 +161,14 @@ pub fn main() !void {
     const allocator = &gpa.allocator;
     var nodes_by_name = std.StringHashMap(*TreeNode).init(allocator);
     defer nodes_by_name.deinit();
+    defer {
+        var iterator = nodes_by_name.iterator();
+        while (iterator.next()) |kv| {
+            kv.value.freeSelf(std.testing.allocator);
+        }
+    }
 
     var head = try buildTree("orbits.txt", &nodes_by_name, allocator);
-    defer head.freeSelfAndChildren(allocator);
 
     try stdout.print("{}\n", .{head.countOrbits(0)});
 
