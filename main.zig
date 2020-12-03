@@ -130,6 +130,7 @@ pub fn buildTree(path: []const u8, nodes_by_name: *std.StringHashMap(*TreeNode),
                 center_planet = try allocator.create(TreeNode);
                 center_planet.* = .{ .name = center_name };
                 try nodes_by_name.put(center_name, center_planet);
+                errdefer |_| allocator.destroy(nodes_by_name.remove(center_name).?.value);
                 try head_nodes.put(center_name, center_planet);
             }
             var satellite_planet: *TreeNode = undefined;
@@ -145,6 +146,7 @@ pub fn buildTree(path: []const u8, nodes_by_name: *std.StringHashMap(*TreeNode),
                 errdefer |_| allocator.free(satellite_name);
                 std.mem.copy(u8, satellite_name, pieces[1]);
                 satellite_planet = try allocator.create(TreeNode);
+                errdefer |_| allocator.destroy(satellite_planet);
                 satellite_planet.* = .{ .name = satellite_name };
                 try nodes_by_name.put(satellite_name, satellite_planet);
             }
@@ -164,7 +166,7 @@ pub fn main() !void {
     defer {
         var iterator = nodes_by_name.iterator();
         while (iterator.next()) |kv| {
-            kv.value.freeSelf(std.testing.allocator);
+            kv.value.freeSelf(allocator);
         }
     }
 
